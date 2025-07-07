@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Add Employee</title>
+  <link rel="stylesheet" href="add-employee.css" />
+</head>
+<body>
+  <div class="wrapper">
+    <!-- Back to Dashboard -->
+    <a href="indexLogin.html" class="back-btn">← Back to Dashboard</a>
+
+    <div class="login-box">
+      <div class="logo">
+        <h2><span class="highlight">Add</span> Employee</h2>
+      </div>
+
+      <form id="employeeForm">
+        <h3>Select Position</h3>
+        <div class="position-buttons">
+          <button type="button" id="adminBtn">Admin</button>
+          <button type="button" id="cashierBtn">Cashier</button>
+        </div>
+
+        <div class="input-group">
+          <label for="fullName">Full Name</label>
+          <input type="text" id="fullName" required />
+        </div>
+
+        <div class="input-group auth-fields" style="display: none;">
+          <label for="email">Email</label>
+          <input type="text" id="email" />
+        </div>
+
+        <div class="input-group auth-fields" style="display: none;">
+          <label for="password">Password</label>
+          <input type="text" id="password" />
+        </div>
+
+        <div class="input-group">
+          <label for="photo">Photo</label>
+          <input type="file" id="photo" accept="image/*" required />
+        </div>
+
+        <button type="submit">Add Employee</button>
+      </form>
+    </div>
+
+    <!-- Employee List -->
+    <div class="employee-list">
+      <h3>Employee List</h3>
+      <ul id="employeeList"></ul>
+    </div>
+  </div>
+
+    <script>
+    let selectedPosition = "";
+
+    const adminBtn = document.getElementById("adminBtn");
+    const cashierBtn = document.getElementById("cashierBtn");
+    const authFields = document.querySelectorAll(".auth-fields");
+
+    adminBtn.addEventListener("click", () => {
+      selectedPosition = "Admin";
+      adminBtn.classList.add("selected");
+      cashierBtn.classList.remove("selected");
+      authFields.forEach(f => f.style.display = "block");
+    });
+
+    cashierBtn.addEventListener("click", () => {
+      selectedPosition = "Cashier";
+      cashierBtn.classList.add("selected");
+      adminBtn.classList.remove("selected");
+      authFields.forEach(f => f.style.display = "block");
+    });
+
+    document.getElementById("employeeForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      const fullName = document.getElementById("fullName").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const photo = document.getElementById("photo").files[0];
+
+      if (!fullName || !photo || !selectedPosition || !email || !password) {
+        alert("Please fill out all fields.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function () {
+        const employee = {
+          fullName,
+          email,
+          password,
+          position: selectedPosition,
+          photo: reader.result,
+          role: selectedPosition
+        };
+
+        fetch("../brennan_fanatics_backend/add_employee.php", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(employee)
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.message === "Employee added successfully") {
+            alert(`${fullName} (${selectedPosition}) added successfully!`);
+            document.getElementById("employeeForm").reset();
+            fetchAndRenderEmployees();
+          } else if (data.error) {
+            alert(`Error: ${data.error}`);
+          } else {
+            alert("Unknown error occurred.");
+          }
+        })
+        .catch(error => {
+          alert("Error connecting to server.");
+          console.error("Add employee error:", error);
+        });
+      };
+
+      reader.readAsDataURL(photo);
+    });
+
+    function fetchAndRenderEmployees() {
+      fetch("../brennan_fanatics_backend/get_employees.php")
+        .then(response => response.json())
+        .then(employees => {
+          const list = document.getElementById("employeeList");
+          list.innerHTML = "";
+
+          employees.forEach((emp) => {
+            const li = document.createElement("li");
+            li.innerHTML = `
+              <div class="employee-card">
+                <img src="${emp.photo_path ? '../' + emp.photo_path : 'https://via.placeholder.com/100'}" alt="Photo" class="employee-photo" />
+                <div class="role-label">${emp.position}</div>
+                <input type="text" value="${emp.full_name}" id="name-${emp.id}" />
+                <input type="text" value="${emp.email}" id="email-${emp.id}" />
+                <input type="text" value="" placeholder="New password" id="password-${emp.id}" />
+                <button onclick="updateEmployee(${emp.id})">Update</button>
+                <button class="delete" onclick="deleteEmployee(${emp.id})">Delete</button>
+              </div>
+            `;
+            list.appendChild(li);
+          });
+        })
+        .catch(error => {
+          console.error("Error fetching employees:", error);
+        });
+    }
+
+    function updateEmployee(id) {
+      const updatedName = document.getElementById(`name-${id}`).value.trim();
+      const updatedEmail = document.getElementById(`email-${id}`).value.trim();
+      const updatedPassword = document.getElementById(`password-${id}`).value.trim();
+
+      if (!updatedName || !updatedEmail) {
+        alert("Name and email are required.");
+        return;
+      }
+
+      if (!updatedPassword) {
+        alert("Please enter a new password to update.");
+        return;
+      }
+
+      const employee = {
+        id,
+        fullName: updatedName,
+        email: updatedEmail,
+        password: updatedPassword
+      };
+
+      fetch("../brennan_fanatics_backend/update_employee.php", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(employee)
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.message === "Employee updated successfully") {
+          alert("✅ Employee updated!");
+          fetchAndRenderEmployees();
+        } else if (data.error) {
+          alert(`Error: ${data.error}`);
+        } else {
+          alert("Unknown error occurred.");
+        }
+      })
+      .catch(error => {
+        alert("Error connecting to server.");
+        console.error("Update employee error:", error);
+      });
+    }
+
+    function deleteEmployee(id) {
+      if (!confirm("Delete this employee?")) return;
+
+      fetch("../brennan_fanatics_backend/delete_employee.php", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ id })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.message === "Employee deleted successfully") {
+          alert("✅ Employee deleted!");
+          fetchAndRenderEmployees();
+        } else if (data.error) {
+          alert(`Error: ${data.error}`);
+        } else {
+          alert("Unknown error occurred.");
+        }
+      })
+      .catch(error => {
+        alert("Error connecting to server.");
+        console.error("Delete employee error:", error);
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", fetchAndRenderEmployees);
+  </script>
+</body>
+</html>
